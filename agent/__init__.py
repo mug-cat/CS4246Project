@@ -3,6 +3,8 @@ try:
 except:
     class Agent(object): pass
 import random
+import math
+import numpy
 
 class ExampleAgent(Agent):
     '''
@@ -23,6 +25,25 @@ class ExampleAgent(Agent):
         print('>>> __INIT__ >>>')
         print('test_case_id:', test_case_id)
         '''
+        # initiate the preference matrix
+        self.pref = self.init_pref(10,50)
+
+    # up to you to change, even use a NN for this if you want to
+    def init_pref(self,x,y):
+        temp = numpy.zeros((x,y))
+
+        def l(num):
+            return max(0,num)
+
+        def u(num):
+            return min(num,x-1)
+
+        for j in range(1,y):
+            for i in range(0,min(j+1,x)):
+                temp[i][j] = 0.2*(temp[l(i-1)][l(j-1)]+temp[u(i+1)][l(j-1)]+temp[i][l(j-1)]+temp[i][l(j-2)]+temp[i][l(j-3)])
+
+        return temp
+
 
     def initialize(self, **kwargs):
         '''
@@ -49,6 +70,36 @@ class ExampleAgent(Agent):
         print('agent_speed_range:', agent_speed_range)
         print('gamma:', gamma)
         '''
+    
+    def get_agent_pos(self,state):
+        for i in range(10):
+            for j in range(50):
+                if state[1][i][j] > 1:
+                    return i,j
+
+    # compute new location after action
+    def new_pos(self,x,y,a):
+        
+        def l(num):
+            return max(0,num)
+
+        def u(num):
+            return min(num,4)
+
+        if a == 0:
+            return l(x-1),l(y-1)
+        elif a == 1:
+            return u(x+1),l(y-1)
+        elif a == 2:
+            return x,l(y-1)
+        elif a == 3:
+            return x,l(y-2)
+        else:
+            return x,l(y-3)
+
+    def compute_p(x,y):
+        pass
+
 
     def step(self, state, *args, **kwargs):
         ''' 
@@ -69,7 +120,25 @@ class ExampleAgent(Agent):
         print('>>> STEP >>>')
         print('state:', state)
         '''
-        return random.randrange(5)
+        epsilon = 1.00
+
+        Q_values = self.model.forward(state)
+        x,y = get_agent_pos(state)
+        p_noCollision = numpy.zeros(5)
+        pref = numpy.zeros(5)
+        for action in range(5):
+            x1,y1 = self.new_pos(x,y,action)
+            p_noCollision[action] = compute_p(x1,y1)
+            pref[action] = self.pref[x1][y1]
+
+        final_term = Q_values + epsilon*torch.tensor(p_noCollision) + min(1-epsilon,0.5)*torch.tensor(pref)
+        
+        idx = torch.argmax(final_term).item()
+
+        sample = random.random()
+        if sample < epsilon:
+            idx = random.randrange(5)
+        return idx  
 
     def update(self, *args, **kwargs):
         '''
