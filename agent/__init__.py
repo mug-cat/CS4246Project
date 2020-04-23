@@ -4,7 +4,29 @@ except:
     class Agent(object): pass
 import random
 import math
-import numpy
+import numpy as np
+
+class ReplayBuffer():
+    def __init__(self, buffer_limit=buffer_limit):
+        self.buffer_limit = buffer_limit
+        self.buffer = []
+        self.position = 0
+    
+    def push(self, transition):
+        if len(self.buffer) < self.buffer_limit:
+            self.buffer.append(None)
+        self.buffer[self.position] = transition
+        self.position = (self.position+1)%self.buffer_limit
+    
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer,batch_size)
+        t_batch = list(map(lambda x: torch.tensor(list(x),dtype=torch.float,device=device),zip(*batch)))
+        t_batch[1] = t_batch[1].type(torch.int)
+        return tuple(t_batch)
+
+    def __len__(self):
+        return len(self.buffer)
+
 
 class ExampleAgent(Agent):
     '''
@@ -30,14 +52,14 @@ class ExampleAgent(Agent):
 
     # up to you to change, even use a NN for this if you want to
     def init_pref(self,x,y):
-        temp = numpy.zeros((x,y))
+        temp = np.zeros((x,y))
 
         def l(num):
             return max(0,num)
 
         def u(num):
             return min(num,x-1)
-
+        temp[0][0] = 1
         for j in range(1,y):
             for i in range(0,min(j+1,x)):
                 temp[i][j] = 0.2*(temp[l(i-1)][l(j-1)]+temp[u(i+1)][l(j-1)]+temp[i][l(j-1)]+temp[i][l(j-2)]+temp[i][l(j-3)])
@@ -84,7 +106,7 @@ class ExampleAgent(Agent):
             return max(0,num)
 
         def u(num):
-            return min(num,4)
+            return min(num,9)
 
         if a == 0:
             return l(x-1),l(y-1)
@@ -97,9 +119,45 @@ class ExampleAgent(Agent):
         else:
             return x,l(y-3)
 
-    def compute_p(x,y):
-        pass
 
+    def compute_p_helper(self,original,new,car,maxCar,speedRange,agent=0):
+        if car == maxCar:
+            p_action = 1/(speedRange[1]-speedRange[0]+1)
+            p_product = 1
+            for car in range(maxCar):
+                p_product *= p_action
+                if car != 0:
+                    if new[car] <= new[car-1]:
+                        return 0
+                    elif new[car] == (new[car-1]+1):
+                        p_product *= (new[car]-(original[car]+speedRange[0])+1)
+            return p_product
+        else:
+            sum_ = 0
+            minSpeed = speedRange[1]
+            maxSpeed = speedRange[0]
+            for speed in range(maxSpeed,minSpeed+1):
+                new[car] = original[car]+speed
+                if agent >= new[car] and agent <= (original[car]+minSpeed):
+                    continue
+                sum_ += self.compute_p_helper(original,new,car+1,maxCar,speedRange,agent)
+            return sum_
+
+    def compute_p(self,x,y,state):
+        lane = state[0][x]
+        cut = lane[y:y+4]
+        if (y+4)>len(lane):
+            cut = np.append(cut,lane[:(y+4)%len(lane)])
+        original = []    
+        for i in range(len(cut)):
+            if cut[i] == 1:
+                original.append(i)
+        print(cut,original)
+        original = np.array(original,dtype=np.intc)
+        new = np.zeros(len(original),dtype=np.intc)
+        # get speed range from the environment
+        speedRange = [-3,-1]
+        return self.compute_p_helper(original,new,0,len(original),speedRange,0)
 
     def step(self, state, *args, **kwargs):
         ''' 
@@ -124,14 +182,14 @@ class ExampleAgent(Agent):
 
         Q_values = self.model.forward(state)
         x,y = get_agent_pos(state)
-        p_noCollision = numpy.zeros(5)
-        pref = numpy.zeros(5)
+        p_noCollision = np.zeros(5)
+        pref = np.zeros(5)
         for action in range(5):
             x1,y1 = self.new_pos(x,y,action)
-            p_noCollision[action] = compute_p(x1,y1)
+            p_noCollision[action] = self.compute_p(x1,y1,state)
             pref[action] = self.pref[x1][y1]
 
-        final_term = Q_values + epsilon*torch.tensor(p_noCollision) + min(1-epsilon,0.5)*torch.tensor(pref)
+        final_term = Q_values + epsilon*torch.tensor(p_noCollision) + min(1-epsilon,0.3)*torch.tensor(pref)
         
         idx = torch.argmax(final_term).item()
 
@@ -242,5 +300,7 @@ if __name__ == '__main__':
             'testcases': [{ 'id': tc, 'env': construct_task2_env(), 'runs': 300, 't_max': t_max } for tc, t_max in tcs]
         }
 
-    task = get_task()
-    timed_test(task)
+    #task = get_task()
+    #timed_test(task)
+
+    
