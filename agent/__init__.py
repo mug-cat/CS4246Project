@@ -36,6 +36,17 @@ Transition = collections.namedtuple('Transition', ('state', 'action', 'reward', 
 script_path = os.path.dirname(os.path.realpath(__file__))
 model_path = os.path.join(script_path, 'model.pt')
 
+laneSpeed = {0:[-2, -1],
+              1:[-2, -1],
+              2:[-1, -1],
+              3:[-3, -1],
+              4:[-2, -1],
+              5:[-2, -1],
+              6:[-3, -2],
+              7:[-1, -1],
+              8:[-2, -1],
+              9:[-2, -2]}
+
 class ReplayBuffer():
     def __init__(self, buffer_limit=buffer_limit):
         self.buffer_limit = buffer_limit
@@ -186,7 +197,7 @@ class ExampleAgent(Agent):
         original = np.array(original,dtype=np.intc)
         new = np.zeros(len(original),dtype=np.intc)
         # get speed range from the environment
-        speedRange = [-3,-1]
+        speedRange = laneSpeed.get(x)
         return self.compute_p_helper(original,new,0,len(original),speedRange,0)
 
     def step(self, state, *args, **kwargs):
