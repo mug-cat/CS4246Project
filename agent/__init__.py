@@ -223,9 +223,9 @@ class ExampleAgent(Agent):
 
         Tensor_p_noCollision = torch.tensor(p_noCollision,dtype=torch.float,device=device)
         Tensor_pref = torch.tensor(pref,dtype=torch.float,device=device)
-        final_term = Q_values + epsilon*Tensor_p_noCollision + epsilon*Tensor_pref
+        final_term = Q_values + epsilon*Tensor_p_noCollision + 0.7*epsilon*Tensor_pref
         
-        safe_action = torch.tensor(p_noCollision,dtype=torch.float) + 0.5*torch.tensor(pref,dtype=torch.float)
+        safe_action = Tensor_p_noCollision + 0.5*Tensor_pref
 
         idx = torch.argmax(final_term).item()
 
